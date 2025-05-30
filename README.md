@@ -1,12 +1,24 @@
 # Autonomous AI Web Agent Prototype
 
-This project is a prototype for an autonomous AI web agent, focusing initially on a Task Orchestrator, Browser Automation, and a secure Credential Vault. The system is being built with multi-user capabilities in mind.
+This project is a prototype for an autonomous AI web agent. It features a Task Orchestrator that uses a Reasoning Engine (powered by an LLM) to generate multi-step plans. It also includes Browser Automation capabilities and a secure Credential Vault, designed with multi-user context in mind.
 
-## Modules
+## Core Modules
 
--   **Task Orchestrator (`task_orchestrator/`)**: Accepts task descriptions along with a `user_id` and logs them. Future development will include dispatching tasks to a scheduler.
--   **Browser Automation (`browser_automation/`)**: Contains scripts for automating web interactions using Playwright. The login script now fetches credentials from the Credential Vault based on `user_id` and `service_name`.
--   **Credential Vault (`credential_vault/`)**: Securely stores user-specific service credentials, encrypted using a master key.
+-   **Task Orchestrator (`task_orchestrator/`)**:
+    -   Accepts a `user_id` and a high-level task description.
+    -   Invokes the Reasoning Engine to break down the task into a detailed plan.
+    -   Logs the original task and the generated plan.
+-   **Reasoning Engine (`reasoning_engine/`)**:
+    -   Takes the task description from the Orchestrator.
+    -   Uses an OpenAI GPT model (e.g., gpt-3.5-turbo) to generate a sequence of actionable steps.
+    -   Returns the plan to the Orchestrator.
+-   **Browser Automation (`browser_automation/`)**:
+    -   Contains scripts for automating web interactions using Playwright.
+    -   The `login.py` script can fetch credentials from the Credential Vault based on `user_id` and `service_name`.
+-   **Credential Vault (`credential_vault/`)**:
+    -   Securely stores user-specific service credentials.
+    -   Credentials are encrypted using a master key (`CREDENTIAL_VAULT_KEY` stored in `.env`).
+    -   Provides a CLI tool (`manage_vault.py`) for key generation and credential management.
 
 ## Setup
 
@@ -26,79 +38,95 @@ This project is a prototype for an autonomous AI web agent, focusing initially o
     ```bash
     pip install -r requirements.txt
     ```
+    This now includes `openai` for the Reasoning Engine and `python-dotenv` for managing environment variables.
 
 4.  **Install Playwright browser drivers:**
     ```bash
     playwright install
     ```
-    (You might need to specify a browser, e.g., `playwright install chromium`)
 
-5.  **Configure Environment Variables & Vault Setup:**
-    *   The system uses a `.env` file for environment-specific configurations.
-    *   **Master Encryption Key for Vault**: The Credential Vault requires a master encryption key.
-        1.  Generate a new key:
-            ```bash
-            python credential_vault/manage_vault.py generate-key
-            ```
-        2.  Copy the generated key.
-        3.  Create or open your `.env` file in the project root.
-        4.  Add the key to your `.env` file like this (replace `your_generated_fernet_key_here` with the actual key):
-            ```env
-            CREDENTIAL_VAULT_KEY="your_generated_fernet_key_here"
-            ```
-            *This key was automatically generated and added if you followed the previous steps with the AI agent.*
-    *   **Initialize the Vault File**: After setting the `CREDENTIAL_VAULT_KEY`, initialize the encrypted vault file:
-        ```bash
-        python credential_vault/manage_vault.py init-vault
+5.  **Configure Environment Variables (`.env` file):**
+    Create a `.env` file in the project root if it doesn't exist. It should contain:
+
+    *   **Credential Vault Master Key:**
+        ```env
+        # Credential Vault Master Key (KEEP THIS SECRET)
+        CREDENTIAL_VAULT_KEY="your_generated_fernet_key_here"
         ```
-        This creates an empty `credentials.vault` file, ready to store credentials. *This might have also been done automatically by the agent or upon first use by other scripts if the key was set.*
+        If you haven't generated this key yet, run:
+        `python credential_vault/manage_vault.py generate-key`
+        Then copy the output key into the `.env` file.
+        *This might have been auto-generated in previous steps by the AI agent.*
 
-6.  **Add Credentials to the Vault:**
-    Use the `manage_vault.py` script to add credentials that the browser automation script will use.
-    For example, to add credentials for `test_user_01` for a service named `example_com_login`:
+    *   **OpenAI API Key:**
+        ```env
+        # OpenAI API Key for Reasoning Engine
+        OPENAI_API_KEY="your_openai_api_key_here"
+        ```
+        Replace `your_openai_api_key_here` with your actual OpenAI API key.
+
+6.  **Initialize the Credential Vault File:**
+    After setting the `CREDENTIAL_VAULT_KEY` in `.env`, initialize the vault:
     ```bash
-    python credential_vault/manage_vault.py add-credential test_user_01 example_com_login your_actual_username your_actual_password
+    python credential_vault/manage_vault.py init-vault
     ```
-    Replace `your_actual_username` and `your_actual_password` accordingly. The `service_name` (`example_com_login` in this case) is how the login script will request these specific credentials.
+    *This creates `credentials.vault` and might have been done automatically.*
+
+7.  **Add Credentials to the Vault (Example for Browser Automation):**
+    For the `browser_automation/login.py` script to work, you need to add credentials it can use. The script is currently hardcoded to look for `user_id="test_user_01"` and `service_name="example_com_login"`.
+    ```bash
+    python credential_vault/manage_vault.py add-credential test_user_01 example_com_login your_web_username your_web_password
+    ```
 
 ## Running the Prototype
 
-### Task Orchestrator
+### Task Orchestrator (with Plan Generation)
 
-To run the task orchestrator, provide a `user_id` and a task description:
+The Task Orchestrator now generates a plan using the LLM. Ensure your `OPENAI_API_KEY` is correctly set in `.env`.
 
 ```bash
-python task_orchestrator/main.py test_user_01 "Order a pizza from Domino's"
+python task_orchestrator/main.py test_user_01 "Log into example.com and check my messages."
 ```
-This will log the received task along with the user ID.
+Output will include the original task and the generated multi-step plan. If the API key is missing or invalid, a warning will be logged.
 
 ### Browser Automation (Login Script)
 
-The `browser_automation/login.py` script is set up to demonstrate logging in for a pre-configured user (`test_user_01`) and service (`example_com_login`).
+This script demonstrates logging into a website using credentials from the vault.
 
-1.  **Ensure Prerequisites:**
-    *   `.env` file exists with a valid `CREDENTIAL_VAULT_KEY`.
-    *   Vault is initialized (`python credential_vault/manage_vault.py init-vault`).
-    *   Credentials for `test_user_01` and `example_com_login` are added to the vault as shown in step 6 of Setup.
-    *   **Critical:** The HTML selectors within `browser_automation/login.py` (`USERNAME_SELECTOR`, `PASSWORD_SELECTOR`, etc.) and the `DEFAULT_LOGIN_URL` must be updated to point to a real, accessible login page for the script to function correctly.
+1.  **Prerequisites:**
+    *   `.env` file configured with `CREDENTIAL_VAULT_KEY` (and `OPENAI_API_KEY` for other parts of the system, though not directly by `login.py`).
+    *   Vault initialized and credentials for `test_user_01`/`example_com_login` added (see Setup Step 7).
+    *   **Crucial:** Update HTML selectors and `DEFAULT_LOGIN_URL` in `browser_automation/login.py` to match a real website.
 
-2.  **Run the script:**
+2.  **Run:**
     ```bash
     python browser_automation/login.py
     ```
-    The script will attempt to fetch credentials from the vault for `test_user_01` / `example_com_login` and log in. Check the console output.
 
-## Next Steps (from original issue)
+### Credential Vault Management
 
-The overall project aims to build a modular, cloud-native architecture for autonomous AI web agents.
+Use `manage_vault.py` for key generation and credential management:
+```bash
+# Generate a new master key for the vault
+python credential_vault/manage_vault.py generate-key
 
-1.  ~~Prototype Task Orchestrator + simple Playwright login to test credential flow.~~ (Partially addressed, now with basic vault)
-2.  **Refine for multi-user & security (current focus):**
-    *   ~~Design and implement Credential Vault.~~ (Done for prototype)
-    *   Integrate vault with Task Orchestrator and Browser Automation. (Done for prototype)
-3.  Integrate LLM for generating multi-step plans.
+# Initialize an empty vault file (after setting the key in .env)
+python credential_vault/manage_vault.py init-vault
+
+# Add/update a credential
+python credential_vault/manage_vault.py add-credential <user_id> <service_name> <username> <password>
+
+# Retrieve a credential (for testing)
+python credential_vault/manage_vault.py get-credential <user_id> <service_name>
+```
+
+## Next Steps Roadmap
+
+1.  ~~Prototype Task Orchestrator + simple Playwright login to test credential flow.~~
+2.  ~~Refine for multi-user & security (Credential Vault).~~
+3.  **Integrate LLM for generating multi-step plans.** (Current phase: Basic plan generation implemented)
 4.  Add Captcha Solver to handle test challenges.
 5.  Build the Concurrency Scheduler (Celery + Redis).
-6.  Develop individual Task Modules (start with GitHub push).
+6.  Develop individual Task Modules (start with GitHub push), which would execute the plans from the Reasoning Engine.
 7.  Containerize and deploy a minimal end-to-end on a cloud VM.
-```
+EOF

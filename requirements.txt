@@ -1,2 +1,4 @@
 playwright
 cryptography
+openai
+python-dotenv
