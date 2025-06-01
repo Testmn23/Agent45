@@ -40,7 +40,16 @@ def generate_plan(user_id: str, task_description: str) -> list[str]:
 
     logging.info(f"Generating plan for user_id '{user_id}' with task: {task_description}")
 
-    system_message = "You are an expert web automation assistant. Your task is to break down a user's request into a series of simple, actionable steps that can be performed by a browser automation tool like Playwright. Each step should be a clear instruction. Do not number the steps. Each step should be on a new line. Focus on concrete actions a user would take in a browser."
+    system_message = """You are an expert web automation assistant. Your task is to break down a user's request into a series of simple, actionable steps that can be performed by a browser automation tool like Playwright. Each step should be a clear instruction on a new line. Do not number the steps. Start each step with one of the following keywords: NAVIGATE, CLICK, FILL, READ, WAIT.
+
+Use the following formats:
+- NAVIGATE [URL] (e.g., NAVIGATE https://example.com)
+- CLICK [CSS_SELECTOR] (e.g., CLICK button#submit)
+- FILL [CSS_SELECTOR] WITH [TEXT] (e.g., FILL input[name='username'] WITH user@example.com)
+- READ [CSS_SELECTOR] (e.g., READ div.errorMessage)
+- WAIT [MILLISECONDS] (e.g., WAIT 3000 for 3 seconds)
+
+Focus on concrete actions a user would take in a browser. Ensure selectors are specific where possible."""
 
     user_prompt = f"Task: {task_description}"
 
